@@ -68,8 +68,18 @@ def train_epoch(model, dataloader, optimizer, sigma_data, device):
 
 
 def main():
+    import os
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
+
+    # setup checkpoint directory (google drive if available)
+    if os.path.exists('/content/drive'):
+        save_dir = '/content/drive/MyDrive/diffusion_ckpts'
+    else:
+        save_dir = '.'
+    os.makedirs(save_dir, exist_ok=True)
+    print(f'Saving checkpoints to: {save_dir}')
 
     # load data
     dl, info = load_dataset_and_make_dataloaders(
@@ -92,22 +102,44 @@ def main():
 
     optimizer = Adam(model.parameters(), lr=1e-3)
 
+    # resume from checkpoint if exists
+    start_epoch = 0
+    best_loss = float('inf')
+    ckpt_path = os.path.join(save_dir, 'checkpoint_last.pt')
+
+    if os.path.exists(ckpt_path):
+        print(f'Loading checkpoint from {ckpt_path}')
+        ckpt = torch.load(ckpt_path, map_location=device)
+        model.load_state_dict(ckpt['model_state_dict'])
+        optimizer.load_state_dict(ckpt['optimizer_state_dict'])
+        start_epoch = ckpt['epoch'] + 1
+        best_loss = ckpt.get('best_loss', float('inf'))
+        print(f'Resumed from epoch {start_epoch}, best loss: {best_loss:.6f}')
+
     # training loop
     num_epochs = 50
-    for epoch in range(num_epochs):
+    for epoch in range(start_epoch, num_epochs):
         loss = train_epoch(model, dl.train, optimizer, info.sigma_data, device)
         print(f'Epoch {epoch+1}/{num_epochs}, Loss: {loss:.6f}')
 
-        # save checkpoint
-        if (epoch + 1) % 10 == 0:
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'sigma_data': info.sigma_data,
-                'info': info
-            }, f'checkpoint_epoch_{epoch+1}.pt')
-            print(f'Saved checkpoint at epoch {epoch+1}')
+        # save checkpoint every epoch
+        checkpoint = {
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'sigma_data': info.sigma_data,
+            'info': info,
+            'best_loss': best_loss,
+            'loss': loss
+        }
+
+        torch.save(checkpoint, os.path.join(save_dir, 'checkpoint_last.pt'))
+
+        # save best checkpoint
+        if loss < best_loss:
+            best_loss = loss
+            torch.save(checkpoint, os.path.join(save_dir, 'checkpoint_best.pt'))
+            print(f'Saved best checkpoint with loss: {loss:.6f}')
 
 
 if __name__ == '__main__':
