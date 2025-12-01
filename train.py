@@ -109,7 +109,7 @@ def main():
 
     if os.path.exists(ckpt_path):
         print(f'Loading checkpoint from {ckpt_path}')
-        ckpt = torch.load(ckpt_path, map_location=device)
+        ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
         model.load_state_dict(ckpt['model_state_dict'])
         optimizer.load_state_dict(ckpt['optimizer_state_dict'])
         start_epoch = ckpt['epoch'] + 1

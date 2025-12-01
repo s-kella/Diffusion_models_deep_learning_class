@@ -53,7 +53,7 @@ def main():
     print(f'Using device: {device}')
 
     # load checkpoint
-    checkpoint = torch.load(args.checkpoint, map_location=device)
+    checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=False)
     info = checkpoint['info']
 
     # create model
