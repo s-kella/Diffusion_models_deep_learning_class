@@ -56,7 +56,17 @@ def save_image_grid(images, filename):
     # [-1, 1] -> [0, 1] -> [0, 255]
     images = images.clamp(-1, 1).add(1).div(2).mul(255).byte()
     grid = make_grid(images, nrow=8)
-    img = Image.fromarray(grid.permute(1, 2, 0).cpu().numpy())
+    arr = grid.cpu()
+
+    if arr.shape[0] == 1:
+        # grayscale image
+        arr = arr.squeeze(0).numpy()
+        img = Image.fromarray(arr, mode='L')
+    else:
+        # rgb image
+        arr = arr.permute(1, 2, 0).numpy()
+        img = Image.fromarray(arr)
+
     img.save(filename)
     print(f'Saved image to {filename}')
 
