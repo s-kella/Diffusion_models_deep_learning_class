@@ -33,6 +33,7 @@ def denoise(model, x, sigma, sigma_data):
 @torch.no_grad()
 def sample_images(model, num_images, image_shape, sigma_data, device, steps=50):
     model.eval()
+    sigma_data = sigma_data.to(device)
 
     sigmas = build_sigma_schedule(steps=steps).to(device)
 

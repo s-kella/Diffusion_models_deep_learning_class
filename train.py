@@ -30,6 +30,7 @@ def sample_sigma(n, device, loc=-1.2, scale=1.2, sigma_min=2e-3, sigma_max=80):
 def train_epoch(model, dataloader, optimizer, sigma_data, device):
     model.train()
     total_loss = 0
+    sigma_data = sigma_data.to(device)
 
     for images, _ in tqdm(dataloader, desc='Training'):
         images = images.to(device)
