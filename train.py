@@ -46,7 +46,7 @@ def train_epoch(model, dataloader, optimizer, sigma_data, device):
         cin = c_in(sigma, sigma_data)
         cout = c_out(sigma, sigma_data)
         cskip = c_skip(sigma, sigma_data)
-        cnoise = c_noise(sigma).squeeze()
+        cnoise = c_noise(sigma).view(batch_size)
 
         # forward pass
         network_input = cin * noisy_images

@@ -16,12 +16,13 @@ def build_sigma_schedule(steps, rho=7, sigma_min=2e-3, sigma_max=80):
 
 def denoise(model, x, sigma, sigma_data):
     # D_theta(x, sigma) = c_skip(sigma) * x + c_out(sigma) * F_theta(c_in(sigma) * x, c_noise(sigma))
+    batch_size = sigma.shape[0]
     sigma = sigma.view(-1, 1, 1, 1)
 
     cin = c_in(sigma, sigma_data)
     cout = c_out(sigma, sigma_data)
     cskip = c_skip(sigma, sigma_data)
-    cnoise = c_noise(sigma).squeeze()
+    cnoise = c_noise(sigma).view(batch_size)
 
     network_input = cin * x
     network_output = model(network_input, cnoise)
