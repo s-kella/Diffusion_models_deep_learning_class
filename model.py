@@ -35,10 +35,20 @@ class NoiseEmbedding(nn.Module):
         assert cond_channels % 2 == 0
         self.register_buffer('weight', torch.randn(1, cond_channels // 2))
 
+        # mlp to process fourier features
+        self.mlp = nn.Sequential(
+            nn.Linear(cond_channels, cond_channels * 4),
+            nn.SiLU(),
+            nn.Linear(cond_channels * 4, cond_channels)
+        )
+
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         assert input.ndim == 1
+        # fourier features
         f = 2 * torch.pi * input.unsqueeze(1) @ self.weight
-        return torch.cat([f.cos(), f.sin()], dim=-1)
+        fourier = torch.cat([f.cos(), f.sin()], dim=-1)
+        # process through mlp
+        return self.mlp(fourier)
 
 
 class ConditionalGroupNorm(nn.Module):
