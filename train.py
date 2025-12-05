@@ -101,7 +101,7 @@ def main():
         cond_channels=128
     ).to(device)
 
-    optimizer = Adam(model.parameters(), lr=1e-3)
+    optimizer = Adam(model.parameters(), lr=1e-4, betas=(0.9, 0.999))
 
     # resume from checkpoint if exists
     start_epoch = 0
