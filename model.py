@@ -41,17 +41,17 @@ class NoiseEmbedding(nn.Module):
         return torch.cat([f.cos(), f.sin()], dim=-1)
 
 
-class ConditionalBatchNorm2d(nn.Module):
-    def __init__(self, num_features: int, cond_channels: int) -> None:
+class ConditionalGroupNorm(nn.Module):
+    def __init__(self, num_channels: int, cond_channels: int, num_groups: int = 32) -> None:
         super().__init__()
-        self.norm = nn.BatchNorm2d(num_features, affine=False)
-        self.linear = nn.Linear(cond_channels, num_features * 2)
+        self.norm = nn.GroupNorm(num_groups, num_channels, affine=False)
+        self.linear = nn.Linear(cond_channels, num_channels * 2)
 
     def forward(self, x: torch.Tensor, cond: torch.Tensor) -> torch.Tensor:
         # cond shape: (batch_size, cond_channels)
         params = self.linear(cond)
         scale, bias = params.chunk(2, dim=1)
-        # reshape to (batch_size, num_features, 1, 1)
+        # reshape to (batch_size, num_channels, 1, 1)
         scale = scale.unsqueeze(-1).unsqueeze(-1)
         bias = bias.unsqueeze(-1).unsqueeze(-1)
 
@@ -62,9 +62,9 @@ class ConditionalBatchNorm2d(nn.Module):
 class ResidualBlock(nn.Module):
     def __init__(self, nb_channels: int, cond_channels: int) -> None:
         super().__init__()
-        self.norm1 = ConditionalBatchNorm2d(nb_channels, cond_channels)
+        self.norm1 = ConditionalGroupNorm(nb_channels, cond_channels)
         self.conv1 = nn.Conv2d(nb_channels, nb_channels, kernel_size=3, stride=1, padding=1)
-        self.norm2 = ConditionalBatchNorm2d(nb_channels, cond_channels)
+        self.norm2 = ConditionalGroupNorm(nb_channels, cond_channels)
         self.conv2 = nn.Conv2d(nb_channels, nb_channels, kernel_size=3, stride=1, padding=1)
 
         # initialize second conv to zero
@@ -72,6 +72,6 @@ class ResidualBlock(nn.Module):
         nn.init.zeros_(self.conv2.bias)
 
     def forward(self, x: torch.Tensor, cond: torch.Tensor) -> torch.Tensor:
-        y = self.conv1(F.relu(self.norm1(x, cond)))
-        y = self.conv2(F.relu(self.norm2(y, cond)))
+        y = self.conv1(F.silu(self.norm1(x, cond)))
+        y = self.conv2(F.silu(self.norm2(y, cond)))
         return x + y
