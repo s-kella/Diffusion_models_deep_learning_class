@@ -76,8 +76,13 @@ def main():
         cond_channels=128
     ).to(device)
 
-    model.load_state_dict(checkpoint['model_state_dict'])
-    print(f'Loaded checkpoint from epoch {checkpoint["epoch"] + 1}')
+    # use ema model if available, otherwise use regular model
+    if 'ema_state_dict' in checkpoint:
+        model.load_state_dict(checkpoint['ema_state_dict'])
+        print(f'Loaded EMA model from epoch {checkpoint["epoch"] + 1}')
+    else:
+        model.load_state_dict(checkpoint['model_state_dict'])
+        print(f'Loaded model from epoch {checkpoint["epoch"] + 1}')
 
     # extract real images if needed
     if not os.path.exists(args.real_folder) or len(list(Path(args.real_folder).glob('*.png'))) == 0:
