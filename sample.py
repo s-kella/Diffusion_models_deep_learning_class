@@ -31,7 +31,7 @@ def denoise(model, x, sigma, sigma_data):
 
 
 @torch.no_grad()
-def sample_images(model, num_images, image_shape, sigma_data, device, steps=50):
+def sample_images(model, num_images, image_shape, sigma_data, device, steps=50, sampler='heun'):
     model.eval()
     sigma_data = sigma_data.to(device)
 
@@ -40,14 +40,41 @@ def sample_images(model, num_images, image_shape, sigma_data, device, steps=50):
     # initialize with pure gaussian noise
     x = torch.randn(num_images, *image_shape, device=device) * sigmas[0]
 
-    for i, sigma in enumerate(sigmas):
-        sigma_batch = sigma.repeat(num_images)
-        x_denoised = denoise(model, x, sigma_batch, sigma_data)
+    if sampler == 'euler':
+        # euler method (1st order)
+        for i, sigma in enumerate(sigmas):
+            sigma_batch = sigma.repeat(num_images)
+            x_denoised = denoise(model, x, sigma_batch, sigma_data)
 
-        sigma_next = sigmas[i + 1] if i < len(sigmas) - 1 else 0
-        d = (x - x_denoised) / sigma
+            sigma_next = sigmas[i + 1] if i < len(sigmas) - 1 else 0
+            d = (x - x_denoised) / sigma
 
-        x = x + d * (sigma_next - sigma)
+            x = x + d * (sigma_next - sigma)
+    elif sampler == 'heun':
+        # heun method (2nd order)
+        for i, sigma in enumerate(sigmas):
+            sigma_batch = sigma.repeat(num_images)
+            x_denoised = denoise(model, x, sigma_batch, sigma_data)
+
+            sigma_next = sigmas[i + 1] if i < len(sigmas) - 1 else 0
+
+            if sigma_next == 0:
+                # last step
+                x = x_denoised
+            else:
+                # first derivative
+                d = (x - x_denoised) / sigma
+                # euler step
+                x_euler = x + d * (sigma_next - sigma)
+                # second derivative at euler point
+                sigma_next_batch = sigma_next.repeat(num_images)
+                x_denoised_next = denoise(model, x_euler, sigma_next_batch, sigma_data)
+                d_next = (x_euler - x_denoised_next) / sigma_next
+                # average derivatives (heun's method)
+                d_avg = (d + d_next) / 2
+                x = x + d_avg * (sigma_next - sigma)
+    else:
+        raise ValueError(f'Unknown sampler: {sampler}')
 
     return x
 
@@ -76,6 +103,7 @@ def main():
     parser.add_argument('--checkpoint', type=str, required=True, help='path to checkpoint')
     parser.add_argument('--num_images', type=int, default=64, help='number of images to generate')
     parser.add_argument('--steps', type=int, default=50, help='number of sampling steps')
+    parser.add_argument('--sampler', type=str, default='heun', choices=['euler', 'heun'], help='sampling method')
     parser.add_argument('--output', type=str, default='generated.png', help='output filename')
     args = parser.parse_args()
 
@@ -103,14 +131,15 @@ def main():
         print(f'Loaded model from epoch {checkpoint["epoch"] + 1}')
 
     # generate images
-    print(f'Generating {args.num_images} images with {args.steps} steps...')
+    print(f'Generating {args.num_images} images with {args.steps} steps using {args.sampler} sampler...')
     images = sample_images(
         model=model,
         num_images=args.num_images,
         image_shape=(info.image_channels, info.image_size, info.image_size),
         sigma_data=checkpoint['sigma_data'],
         device=device,
-        steps=args.steps
+        steps=args.steps,
+        sampler=args.sampler
     )
 
     # save images
