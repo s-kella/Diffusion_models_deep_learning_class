@@ -121,7 +121,18 @@ def main():
 
     # compute FID using pytorch-fid
     print('Computing FID score...')
-    print(f'Run: python -m pytorch_fid {args.real_folder} {args.fake_folder}')
+    try:
+        from pytorch_fid import fid_score
+        fid_value = fid_score.calculate_fid_given_paths(
+            [args.real_folder, args.fake_folder],
+            batch_size=50,
+            device=device,
+            dims=2048
+        )
+        print(f'FID score: {fid_value:.2f}')
+    except ImportError:
+        print('pytorch-fid not found. Install with: pip install pytorch-fid')
+        print(f'Or run manually: python -m pytorch_fid {args.real_folder} {args.fake_folder}')
 
 
 if __name__ == '__main__':
