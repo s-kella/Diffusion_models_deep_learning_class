@@ -96,9 +96,9 @@ def main():
 
     # setup checkpoint directory (google drive if available)
     if os.path.exists('/content/drive'):
-        save_dir = '/content/drive/MyDrive/diffusion_ckpts'
+        save_dir = '/content/drive/MyDrive/diffusion_ckpts_v2'
     else:
-        save_dir = '.'
+        save_dir = './checkpoints_v2'
     os.makedirs(save_dir, exist_ok=True)
     print(f'Saving checkpoints to: {save_dir}')
 
