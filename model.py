@@ -35,33 +35,23 @@ class NoiseEmbedding(nn.Module):
         assert cond_channels % 2 == 0
         self.register_buffer('weight', torch.randn(1, cond_channels // 2))
 
-        # mlp to process fourier features
-        self.mlp = nn.Sequential(
-            nn.Linear(cond_channels, cond_channels * 4),
-            nn.SiLU(),
-            nn.Linear(cond_channels * 4, cond_channels)
-        )
-
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         assert input.ndim == 1
-        # fourier features
         f = 2 * torch.pi * input.unsqueeze(1) @ self.weight
-        fourier = torch.cat([f.cos(), f.sin()], dim=-1)
-        # process through mlp
-        return self.mlp(fourier)
+        return torch.cat([f.cos(), f.sin()], dim=-1)
 
 
-class ConditionalGroupNorm(nn.Module):
-    def __init__(self, num_channels: int, cond_channels: int, num_groups: int = 32) -> None:
+class ConditionalBatchNorm2d(nn.Module):
+    def __init__(self, num_features: int, cond_channels: int) -> None:
         super().__init__()
-        self.norm = nn.GroupNorm(num_groups, num_channels, affine=False)
-        self.linear = nn.Linear(cond_channels, num_channels * 2)
+        self.norm = nn.BatchNorm2d(num_features, affine=False)
+        self.linear = nn.Linear(cond_channels, num_features * 2)
 
     def forward(self, x: torch.Tensor, cond: torch.Tensor) -> torch.Tensor:
         # cond shape: (batch_size, cond_channels)
         params = self.linear(cond)
         scale, bias = params.chunk(2, dim=1)
-        # reshape to (batch_size, num_channels, 1, 1)
+        # reshape to (batch_size, num_features, 1, 1)
         scale = scale.unsqueeze(-1).unsqueeze(-1)
         bias = bias.unsqueeze(-1).unsqueeze(-1)
 
@@ -72,9 +62,9 @@ class ConditionalGroupNorm(nn.Module):
 class ResidualBlock(nn.Module):
     def __init__(self, nb_channels: int, cond_channels: int) -> None:
         super().__init__()
-        self.norm1 = ConditionalGroupNorm(nb_channels, cond_channels)
+        self.norm1 = ConditionalBatchNorm2d(nb_channels, cond_channels)
         self.conv1 = nn.Conv2d(nb_channels, nb_channels, kernel_size=3, stride=1, padding=1)
-        self.norm2 = ConditionalGroupNorm(nb_channels, cond_channels)
+        self.norm2 = ConditionalBatchNorm2d(nb_channels, cond_channels)
         self.conv2 = nn.Conv2d(nb_channels, nb_channels, kernel_size=3, stride=1, padding=1)
 
         # initialize second conv to zero
@@ -82,6 +72,6 @@ class ResidualBlock(nn.Module):
         nn.init.zeros_(self.conv2.bias)
 
     def forward(self, x: torch.Tensor, cond: torch.Tensor) -> torch.Tensor:
-        y = self.conv1(F.silu(self.norm1(x, cond)))
-        y = self.conv2(F.silu(self.norm2(y, cond)))
+        y = self.conv1(F.relu(self.norm1(x, cond)))
+        y = self.conv2(F.relu(self.norm2(y, cond)))
         return x + y

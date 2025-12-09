@@ -121,7 +121,7 @@ def main():
         cond_channels=128
     ).to(device)
 
-    optimizer = Adam(model.parameters(), lr=1e-4, betas=(0.9, 0.999))
+    optimizer = Adam(model.parameters(), lr=1e-3, betas=(0.9, 0.999))
     ema = EMA(model, decay=0.9999)
 
     # resume from checkpoint if exists
