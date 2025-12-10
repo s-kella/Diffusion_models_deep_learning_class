@@ -34,17 +34,23 @@ class NoiseEmbedding(nn.Module):
         super().__init__()
         assert cond_channels % 2 == 0
         self.register_buffer('weight', torch.randn(1, cond_channels // 2))
+        self.mlp = nn.Sequential(
+            nn.Linear(cond_channels, cond_channels * 2),
+            nn.SiLU(),
+            nn.Linear(cond_channels * 2, cond_channels)
+        )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         assert input.ndim == 1
         f = 2 * torch.pi * input.unsqueeze(1) @ self.weight
-        return torch.cat([f.cos(), f.sin()], dim=-1)
+        emb = torch.cat([f.cos(), f.sin()], dim=-1)
+        return self.mlp(emb)
 
 
 class ConditionalBatchNorm2d(nn.Module):
     def __init__(self, num_features: int, cond_channels: int) -> None:
         super().__init__()
-        self.norm = nn.BatchNorm2d(num_features, affine=False)
+        self.norm = nn.GroupNorm(num_groups=32, num_channels=num_features, affine=False)
         self.linear = nn.Linear(cond_channels, num_features * 2)
 
     def forward(self, x: torch.Tensor, cond: torch.Tensor) -> torch.Tensor:
@@ -72,6 +78,6 @@ class ResidualBlock(nn.Module):
         nn.init.zeros_(self.conv2.bias)
 
     def forward(self, x: torch.Tensor, cond: torch.Tensor) -> torch.Tensor:
-        y = self.conv1(F.relu(self.norm1(x, cond)))
-        y = self.conv2(F.relu(self.norm2(y, cond)))
+        y = self.conv1(F.silu(self.norm1(x, cond)))
+        y = self.conv2(F.silu(self.norm2(y, cond)))
         return x + y
