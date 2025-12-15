@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 from model import Model
@@ -81,6 +82,23 @@ def sample_images(model, device, sigma_data, num_images=8, steps=50, image_chann
 
 
 def main():
+    # Check if running in Google Colab
+    try:
+        import google.colab
+        IN_COLAB = True
+        print('Running in Google Colab')
+    except:
+        IN_COLAB = False
+        print('Running locally')
+
+    # Mount Google Drive if in Colab
+    if IN_COLAB:
+        from google.colab import drive
+        drive.mount('/content/drive')
+        checkpoint_dir = '/content/drive/MyDrive/diffusion_ckpts'
+    else:
+        checkpoint_dir = 'checkpoints'
+
     # Setup device
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
@@ -106,8 +124,13 @@ def main():
     ).to(device)
 
     # Load trained weights
-    model.load_state_dict(torch.load('diffusion_model.pth', map_location=device))
-    print('Loaded model weights from diffusion_model.pth')
+    model_path = os.path.join(checkpoint_dir, 'diffusion_model_final.pth')
+    if not os.path.exists(model_path):
+        # Try loading from local path as fallback
+        model_path = 'diffusion_model.pth'
+
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    print(f'Loaded model weights from {model_path}')
 
     # Sample images
     images = sample_images(

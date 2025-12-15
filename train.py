@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 from data import load_dataset_and_make_dataloaders
@@ -30,6 +31,27 @@ def c_noise(sigma):
 
 
 def train():
+    # Check if running in Google Colab
+    try:
+        import google.colab
+        IN_COLAB = True
+        print('Running in Google Colab')
+    except:
+        IN_COLAB = False
+        print('Running locally')
+
+    # Mount Google Drive if in Colab
+    if IN_COLAB:
+        from google.colab import drive
+        drive.mount('/content/drive')
+        checkpoint_dir = '/content/drive/MyDrive/diffusion_ckpts'
+    else:
+        checkpoint_dir = 'checkpoints'
+
+    # Create checkpoint directory
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    print(f'Checkpoint directory: {checkpoint_dir}')
+
     # Setup device
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
@@ -58,12 +80,29 @@ def train():
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     criterion = nn.MSELoss()
 
-    print(f'\nStarting training...')
-    print(f'Model parameters: {sum(p.numel() for p in model.parameters()):,}')
+    print(f'\nModel parameters: {sum(p.numel() for p in model.parameters()):,}')
+
+    # Check for existing checkpoints and resume if available
+    start_epoch = 0
+    checkpoint_files = sorted([f for f in os.listdir(checkpoint_dir) if f.startswith('checkpoint_epoch_')])
+
+    if checkpoint_files:
+        # Load the latest checkpoint
+        latest_checkpoint = os.path.join(checkpoint_dir, checkpoint_files[-1])
+        print(f'\nFound existing checkpoint: {latest_checkpoint}')
+        checkpoint = torch.load(latest_checkpoint, map_location=device)
+
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        start_epoch = checkpoint['epoch']
+        print(f'Resuming training from epoch {start_epoch}')
+        print(f'Previous loss: {checkpoint["loss"]:.4f}')
+    else:
+        print('\nNo existing checkpoints found. Starting training from scratch...')
 
     # Training loop
     num_epochs = 10
-    for epoch in range(num_epochs):
+    for epoch in range(start_epoch, num_epochs):
         model.train()
         total_loss = 0
         num_batches = 0
@@ -111,11 +150,22 @@ def train():
         avg_epoch_loss = total_loss / num_batches
         print(f'Epoch [{epoch+1}/{num_epochs}] completed. Average Loss: {avg_epoch_loss:.4f}')
 
+        # Save checkpoint every epoch
+        checkpoint_path = os.path.join(checkpoint_dir, f'checkpoint_epoch_{epoch+1}.pth')
+        torch.save({
+            'epoch': epoch + 1,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'loss': avg_epoch_loss,
+        }, checkpoint_path)
+        print(f'Checkpoint saved to {checkpoint_path}')
+
     print('\nTraining completed!')
 
-    # Save the model
-    torch.save(model.state_dict(), 'diffusion_model.pth')
-    print('Model saved to diffusion_model.pth')
+    # Save final model
+    final_model_path = os.path.join(checkpoint_dir, 'diffusion_model_final.pth')
+    torch.save(model.state_dict(), final_model_path)
+    print(f'Final model saved to {final_model_path}')
 
 
 if __name__ == '__main__':
