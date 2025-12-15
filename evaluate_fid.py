@@ -9,7 +9,7 @@ from torchvision.utils import make_grid, save_image
 from PIL import Image
 from data import load_dataset_and_make_dataloaders
 from model import Model
-from sample import build_sigma_schedule, c_in, c_out, c_skip, c_noise
+from utils import build_sigma_schedule, c_in, c_out, c_skip, c_noise
 
 
 def calculate_fid(real_features, fake_features):

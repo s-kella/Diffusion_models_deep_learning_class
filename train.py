@@ -3,31 +3,7 @@ import torch
 import torch.nn as nn
 from data import load_dataset_and_make_dataloaders
 from model import Model
-
-
-def sample_sigma(n, loc=-1.2, scale=1.2, sigma_min=2e-3, sigma_max=80):
-    """Sample noise levels from log-normal distribution."""
-    return (torch.randn(n) * scale + loc).exp().clip(sigma_min, sigma_max)
-
-
-def c_in(sigma, sigma_data):
-    """Scale network input for unit variance."""
-    return 1 / torch.sqrt(sigma_data**2 + sigma**2)
-
-
-def c_out(sigma, sigma_data):
-    """Scale network output for unit variance."""
-    return (sigma * sigma_data) / torch.sqrt(sigma**2 + sigma_data**2)
-
-
-def c_skip(sigma, sigma_data):
-    """Control skip connection."""
-    return sigma_data**2 / (sigma_data**2 + sigma**2)
-
-
-def c_noise(sigma):
-    """Transform noise level before giving to network."""
-    return torch.log(sigma) / 4
+from utils import sample_sigma, c_in, c_out, c_skip, c_noise
 
 
 def train():

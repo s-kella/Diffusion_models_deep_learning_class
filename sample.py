@@ -5,34 +5,7 @@ from model import Model
 from data import load_dataset_and_make_dataloaders
 from PIL import Image
 from torchvision.utils import make_grid
-
-
-def build_sigma_schedule(steps, rho=7, sigma_min=2e-3, sigma_max=80):
-    """Build a schedule of decreasing noise levels."""
-    min_inv_rho = sigma_min ** (1 / rho)
-    max_inv_rho = sigma_max ** (1 / rho)
-    sigmas = (max_inv_rho + torch.linspace(0, 1, steps) * (min_inv_rho - max_inv_rho)) ** rho
-    return sigmas
-
-
-def c_in(sigma, sigma_data):
-    """Scale network input for unit variance."""
-    return 1 / torch.sqrt(sigma_data**2 + sigma**2)
-
-
-def c_out(sigma, sigma_data):
-    """Scale network output for unit variance."""
-    return (sigma * sigma_data) / torch.sqrt(sigma**2 + sigma_data**2)
-
-
-def c_skip(sigma, sigma_data):
-    """Control skip connection."""
-    return sigma_data**2 / (sigma_data**2 + sigma**2)
-
-
-def c_noise(sigma):
-    """Transform noise level before giving to network."""
-    return torch.log(sigma) / 4
+from utils import build_sigma_schedule, c_in, c_out, c_skip, c_noise
 
 
 def sample_images(model, device, sigma_data, num_images=8, steps=50, image_channels=1, image_size=32):
