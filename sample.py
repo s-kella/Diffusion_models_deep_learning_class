@@ -156,8 +156,11 @@ def main():
         images = images.clamp(-1, 1).add(1).div(2).mul(255).byte()
         grid = make_grid(images, nrow=4)
         img = Image.fromarray(grid.permute(1, 2, 0).cpu().numpy())
-        img.save('generated_images.png')
-        print('Generated images saved to generated_images.png')
+
+        # Save to checkpoint directory
+        save_path = os.path.join(checkpoint_dir, 'generated_images.png')
+        img.save(save_path)
+        print(f'Generated images saved to {save_path}')
 
 
 if __name__ == '__main__':

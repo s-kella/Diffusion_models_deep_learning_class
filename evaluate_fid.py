@@ -5,6 +5,8 @@ import numpy as np
 from scipy import linalg
 from torchvision.models import inception_v3
 from torch.utils.data import DataLoader
+from torchvision.utils import make_grid, save_image
+from PIL import Image
 from data import load_dataset_and_make_dataloaders
 from model import Model
 from sample import build_sigma_schedule, c_in, c_out, c_skip, c_noise
@@ -194,6 +196,15 @@ def main():
         image_size=info.image_size,
         batch_size=64
     )
+
+    # Save sample of generated images
+    print('\nSaving sample generated images...')
+    sample_images = fake_images[:64].clamp(-1, 1).add(1).div(2).mul(255).byte()
+    grid = make_grid(sample_images, nrow=8)
+    sample_path = os.path.join(checkpoint_dir, 'fid_samples.png')
+    img = Image.fromarray(grid.permute(1, 2, 0).cpu().numpy())
+    img.save(sample_path)
+    print(f'Saved 64 sample images to {sample_path}')
 
     # Extract features from fake images
     print('\nExtracting features from generated images...')
