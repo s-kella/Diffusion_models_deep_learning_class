@@ -17,13 +17,7 @@ def save_images_to_folder(images, folder):
     images = images.clamp(-1, 1).add(1).div(2).mul(255).byte()
 
     for i, img in enumerate(images):
-        arr = img.cpu()
-        if arr.shape[0] == 1:
-            arr = arr.squeeze(0).numpy()
-            img_pil = Image.fromarray(arr, mode='L')
-        else:
-            arr = arr.permute(1, 2, 0).numpy()
-            img_pil = Image.fromarray(arr)
+        img_pil = Image.fromarray(img.permute(1, 2, 0).cpu().numpy())
         img_pil.save(folder / f'{i:05d}.png')
 
 
@@ -40,13 +34,7 @@ def extract_real_images(dataloader, num_images, folder):
             if count >= num_images:
                 return
 
-            arr = img.cpu()
-            if arr.shape[0] == 1:
-                arr = arr.squeeze(0).numpy()
-                img_pil = Image.fromarray(arr, mode='L')
-            else:
-                arr = arr.permute(1, 2, 0).numpy()
-                img_pil = Image.fromarray(arr)
+            img_pil = Image.fromarray(img.permute(1, 2, 0).cpu().numpy())
             img_pil.save(folder / f'{count:05d}.png')
             count += 1
 
