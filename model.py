@@ -7,24 +7,15 @@ class ConditionalBatchNorm2d(nn.Module):
     """Conditional Batch Normalization where affine parameters are predicted from conditioning."""
     def __init__(self, nb_channels: int, cond_channels: int) -> None:
         super().__init__()
-        # BatchNorm without learnable affine parameters
         self.bn = nn.BatchNorm2d(nb_channels, affine=False)
-        # Linear layer to predict gamma and beta from conditioning
         self.linear = nn.Linear(cond_channels, nb_channels * 2)
 
     def forward(self, x: torch.Tensor, cond: torch.Tensor) -> torch.Tensor:
-        # Normalize the input
         normalized = self.bn(x)
-
-        # Predict affine parameters from conditioning
-        affine_params = self.linear(cond)  # Shape: (batch_size, nb_channels * 2)
-        gamma, beta = affine_params.chunk(2, dim=1)  # Split into gamma and beta
-
-        # Reshape for broadcasting: (batch_size, nb_channels, 1, 1)
+        affine_params = self.linear(cond)
+        gamma, beta = affine_params.chunk(2, dim=1)
         gamma = gamma.view(-1, gamma.size(1), 1, 1)
         beta = beta.view(-1, beta.size(1), 1, 1)
-
-        # Apply affine transformation: gamma * normalized + beta
         return gamma * normalized + beta
 
 
@@ -59,7 +50,7 @@ class NoiseEmbedding(nn.Module):
         super().__init__()
         assert cond_channels % 2 == 0
         self.register_buffer('weight', torch.randn(1, cond_channels // 2))
-    
+
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         assert input.ndim == 1
         f = 2 * torch.pi * input.unsqueeze(1) @ self.weight
