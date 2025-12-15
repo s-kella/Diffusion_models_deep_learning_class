@@ -4,7 +4,6 @@ import torch.nn.functional as F
 
 
 class ConditionalBatchNorm2d(nn.Module):
-    """Conditional Batch Normalization where affine parameters are predicted from conditioning."""
     def __init__(self, nb_channels: int, cond_channels: int) -> None:
         super().__init__()
         self.bn = nn.BatchNorm2d(nb_channels, affine=False)

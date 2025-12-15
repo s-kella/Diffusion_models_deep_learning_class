@@ -13,22 +13,14 @@ from utils import build_sigma_schedule, c_in, c_out, c_skip, c_noise
 
 
 def calculate_fid(real_features, fake_features):
-    """
-    Calculate Fréchet Inception Distance between real and fake features.
-
-    FID = ||mu_real - mu_fake||^2 + Tr(sigma_real + sigma_fake - 2*sqrt(sigma_real*sigma_fake))
-    """
-    # Calculate mean and covariance
     mu_real = np.mean(real_features, axis=0)
     mu_fake = np.mean(fake_features, axis=0)
 
     sigma_real = np.cov(real_features, rowvar=False)
     sigma_fake = np.cov(fake_features, rowvar=False)
 
-    # Calculate FID
     diff = mu_real - mu_fake
 
-    # Product might be almost singular
     covmean, _ = linalg.sqrtm(sigma_real.dot(sigma_fake), disp=False)
 
     if not np.isfinite(covmean).all():
@@ -36,7 +28,6 @@ def calculate_fid(real_features, fake_features):
         offset = np.eye(sigma_real.shape[0]) * 1e-6
         covmean = linalg.sqrtm((sigma_real + offset).dot(sigma_fake + offset))
 
-    # Numerical error might give slight imaginary component
     if np.iscomplexobj(covmean):
         if not np.allclose(np.diagonal(covmean).imag, 0, atol=1e-3):
             m = np.max(np.abs(covmean.imag))
@@ -50,7 +41,6 @@ def calculate_fid(real_features, fake_features):
 
 
 def extract_features(images, inception_model, device):
-    """Extract features from images using Inception v3."""
     inception_model.eval()
 
     with torch.no_grad():
@@ -63,7 +53,7 @@ def extract_features(images, inception_model, device):
                 align_corners=False
             )
 
-        # Convert grayscale to RGB if needed
+        # Convert grayscale to RGB
         if images.size(1) == 1:
             images = images.repeat(1, 3, 1, 1)
 
@@ -76,7 +66,6 @@ def extract_features(images, inception_model, device):
 
 
 def generate_samples(model, device, sigma_data, num_samples, image_channels, image_size, batch_size=64):
-    """Generate samples from the diffusion model."""
     model.eval()
     all_samples = []
 
@@ -85,7 +74,6 @@ def generate_samples(model, device, sigma_data, num_samples, image_channels, ima
     for batch_idx in range(num_batches):
         current_batch_size = min(batch_size, num_samples - batch_idx * batch_size)
 
-        # Create sigma schedule
         sigmas = build_sigma_schedule(steps=50, rho=7).to(device)
 
         # Initialize with noise
@@ -120,7 +108,6 @@ def generate_samples(model, device, sigma_data, num_samples, image_channels, ima
 
 
 def main():
-    # Check if in Colab
     try:
         import google.colab
         if os.path.exists('/content/drive/MyDrive'):
@@ -133,7 +120,6 @@ def main():
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
 
-    # Load dataset
     dl, info = load_dataset_and_make_dataloaders(
         dataset_name='FashionMNIST',
         root_dir='data',
@@ -144,7 +130,6 @@ def main():
 
     print(f'Dataset info: {info}')
 
-    # Load model
     model = Model(
         image_channels=info.image_channels,
         nb_channels=64,
@@ -166,11 +151,8 @@ def main():
     inception_model = inception_model.to(device)
     inception_model.eval()
 
-    # Extract features from real images
-    print('\nExtracting features from real images...')
     real_features = []
     num_real_samples = 10000
-
     for batch_idx, (images, _) in enumerate(dl.valid):
         if len(real_features) * images.size(0) >= num_real_samples:
             break
@@ -186,7 +168,6 @@ def main():
     print(f'Extracted features from {len(real_features)} real images')
 
     # Generate fake images
-    print('\nGenerating fake images...')
     fake_images = generate_samples(
         model,
         device,
@@ -198,7 +179,6 @@ def main():
     )
 
     # Save sample of generated images
-    print('\nSaving sample generated images...')
     sample_images = fake_images[:64].clamp(-1, 1).add(1).div(2).mul(255).byte()
     grid = make_grid(sample_images, nrow=8)
     sample_path = os.path.join(checkpoint_dir, 'fid_samples.png')
@@ -206,8 +186,7 @@ def main():
     img.save(sample_path)
     print(f'Saved 64 sample images to {sample_path}')
 
-    # Extract features from fake images
-    print('\nExtracting features from generated images...')
+    print('Extracting features from generated images...')
     fake_features = []
 
     for i in range(0, len(fake_images), 64):
@@ -221,15 +200,13 @@ def main():
     fake_features = np.concatenate(fake_features, axis=0)
     print(f'Extracted features from {len(fake_features)} generated images')
 
-    # Calculate FID
-    print('\nCalculating FID score...')
+    print('Calculating FID score')
     fid_score = calculate_fid(real_features, fake_features)
 
     print(f'\n{"="*50}')
     print(f'FID Score: {fid_score:.2f}')
     print(f'{"="*50}')
 
-    # Save result
     result_path = os.path.join(checkpoint_dir, 'fid_score.txt')
     with open(result_path, 'w') as f:
         f.write(f'FID Score: {fid_score:.2f}\n')
