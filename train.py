@@ -31,21 +31,29 @@ def c_noise(sigma):
 
 
 def train():
-    # Check if running in Google Colab
+    # Check if running in Google Colab and if drive is already mounted
     try:
         import google.colab
         IN_COLAB = True
         print('Running in Google Colab')
+
+        # Check if drive is already mounted
+        if os.path.exists('/content/drive/MyDrive'):
+            print('Google Drive already mounted')
+            checkpoint_dir = '/content/drive/MyDrive/diffusion_ckpts'
+        else:
+            # Try to mount drive, but handle if running from script
+            try:
+                from google.colab import drive
+                drive.mount('/content/drive')
+                checkpoint_dir = '/content/drive/MyDrive/diffusion_ckpts'
+            except:
+                print('Warning: Could not mount Google Drive. Using local directory.')
+                print('Please mount drive manually in a notebook cell before running script.')
+                checkpoint_dir = 'checkpoints'
     except:
         IN_COLAB = False
         print('Running locally')
-
-    # Mount Google Drive if in Colab
-    if IN_COLAB:
-        from google.colab import drive
-        drive.mount('/content/drive')
-        checkpoint_dir = '/content/drive/MyDrive/diffusion_ckpts'
-    else:
         checkpoint_dir = 'checkpoints'
 
     # Create checkpoint directory
@@ -101,7 +109,7 @@ def train():
         print('\nNo existing checkpoints found. Starting training from scratch...')
 
     # Training loop
-    num_epochs = 10
+    num_epochs = 50
     for epoch in range(start_epoch, num_epochs):
         model.train()
         total_loss = 0
