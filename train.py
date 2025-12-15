@@ -6,57 +6,44 @@ from model import Model
 
 
 def sample_sigma(n, loc=-1.2, scale=1.2, sigma_min=2e-3, sigma_max=80):
-    """Sample noise levels from log-normal distribution."""
     return (torch.randn(n) * scale + loc).exp().clip(sigma_min, sigma_max)
 
 
 def c_in(sigma, sigma_data):
-    """Scale network input for unit variance."""
     return 1 / torch.sqrt(sigma_data**2 + sigma**2)
 
 
 def c_out(sigma, sigma_data):
-    """Scale network output for unit variance."""
     return (sigma * sigma_data) / torch.sqrt(sigma**2 + sigma_data**2)
 
 
 def c_skip(sigma, sigma_data):
-    """Control skip connection."""
     return sigma_data**2 / (sigma_data**2 + sigma**2)
 
 
 def c_noise(sigma):
-    """Transform noise level before giving to network."""
     return torch.log(sigma) / 4
 
 
 def train():
-    # Check if running in Google Colab and if drive is already mounted
+    # if running in Google Colab and if drive is already mounted
     try:
         import google.colab
-        IN_COLAB = True
         print('Running in Google Colab')
 
-        # Check if drive is already mounted
         if os.path.exists('/content/drive/MyDrive'):
-            print('Google Drive already mounted')
             checkpoint_dir = '/content/drive/MyDrive/diffusion_ckpts'
         else:
-            # Try to mount drive, but handle if running from script
             try:
                 from google.colab import drive
                 drive.mount('/content/drive')
                 checkpoint_dir = '/content/drive/MyDrive/diffusion_ckpts'
             except:
-                print('Warning: Could not mount Google Drive. Using local directory.')
-                print('Please mount drive manually in a notebook cell before running script.')
                 checkpoint_dir = 'checkpoints'
     except:
-        IN_COLAB = False
         print('Running locally')
         checkpoint_dir = 'checkpoints'
 
-    # Create checkpoint directory
     os.makedirs(checkpoint_dir, exist_ok=True)
     print(f'Checkpoint directory: {checkpoint_dir}')
 
@@ -76,7 +63,6 @@ def train():
     print(f'Dataset info: {info}')
     print(f'sigma_data: {info.sigma_data}')
 
-    # Initialize model
     model = Model(
         image_channels=info.image_channels,
         nb_channels=64,
@@ -84,20 +70,17 @@ def train():
         cond_channels=128
     ).to(device)
 
-    # Initialize optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     criterion = nn.MSELoss()
 
-    print(f'\nModel parameters: {sum(p.numel() for p in model.parameters()):,}')
+    print(f'Model parameters: {sum(p.numel() for p in model.parameters()):,}')
 
-    # Check for existing checkpoints and resume if available
     start_epoch = 0
     checkpoint_files = sorted([f for f in os.listdir(checkpoint_dir) if f.startswith('checkpoint_epoch_')])
 
     if checkpoint_files:
-        # Load the latest checkpoint
         latest_checkpoint = os.path.join(checkpoint_dir, checkpoint_files[-1])
-        print(f'\nFound existing checkpoint: {latest_checkpoint}')
+        print(f'Found checkpoint: {latest_checkpoint}')
         checkpoint = torch.load(latest_checkpoint, map_location=device)
 
         model.load_state_dict(checkpoint['model_state_dict'])
@@ -105,8 +88,6 @@ def train():
         start_epoch = checkpoint['epoch']
         print(f'Resuming training from epoch {start_epoch}')
         print(f'Previous loss: {checkpoint["loss"]:.4f}')
-    else:
-        print('\nNo existing checkpoints found. Starting training from scratch...')
 
     # Training loop
     num_epochs = 50
@@ -116,32 +97,28 @@ def train():
         num_batches = 0
 
         for batch_idx, (y, labels) in enumerate(dl.train):
-            # Step 1: Sample an image y from the dataset (already done by dataloader)
             y = y.to(device)
             batch_size = y.size(0)
 
-            # Step 2: Sample sigma from p_noise
+            # Sample sigma from p_noise
             sigma = sample_sigma(batch_size).to(device)
 
-            # Step 3: Create a noisy image x by adding gaussian noise of std sigma to the clean image y
+            #Create a noisy image
             epsilon = torch.randn_like(y)
             x = y + sigma.view(-1, 1, 1, 1) * epsilon
 
-            # Step 4: Compute cin, cout, cskip and cnoise
             cin = c_in(sigma, info.sigma_data)
             cout = c_out(sigma, info.sigma_data)
             cskip = c_skip(sigma, info.sigma_data)
             cnoise = c_noise(sigma)
 
-            # Step 5: Forward pass: network takes cin * x and cnoise as inputs
+            # Forward pass - takes cin * x and cnoise as inputs
             network_input = cin.view(-1, 1, 1, 1) * x
             network_output = model(network_input, cnoise)
 
-            # Step 6: Compute MSE loss with target = (y - cskip * x) / cout
             target = (y - cskip.view(-1, 1, 1, 1) * x) / cout.view(-1, 1, 1, 1)
             loss = criterion(network_output, target)
 
-            # Backward pass and optimization
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -149,16 +126,13 @@ def train():
             total_loss += loss.item()
             num_batches += 1
 
-            # Print progress every 100 batches
             if (batch_idx + 1) % 100 == 0:
                 avg_loss = total_loss / num_batches
                 print(f'Epoch [{epoch+1}/{num_epochs}], Batch [{batch_idx+1}], Loss: {avg_loss:.4f}')
 
-        # Print epoch summary
         avg_epoch_loss = total_loss / num_batches
         print(f'Epoch [{epoch+1}/{num_epochs}] completed. Average Loss: {avg_epoch_loss:.4f}')
 
-        # Save checkpoint every epoch
         checkpoint_path = os.path.join(checkpoint_dir, f'checkpoint_epoch_{epoch+1}.pth')
         torch.save({
             'epoch': epoch + 1,
@@ -170,7 +144,6 @@ def train():
 
     print('\nTraining completed!')
 
-    # Save final model
     final_model_path = os.path.join(checkpoint_dir, 'diffusion_model_final.pth')
     torch.save(model.state_dict(), final_model_path)
     print(f'Final model saved to {final_model_path}')
